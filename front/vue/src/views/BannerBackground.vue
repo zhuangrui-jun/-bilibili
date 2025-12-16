@@ -1,207 +1,246 @@
 <template>
-  <div class="banner-background-container">
-    <div id="app" class="parallax-bg" ref="parallaxContainer">
-      <div v-if="loading" class="loading-text">loading...</div>
+  <div
+    ref="bannerContainer"
+    class="banner-container"
+    @mouseenter="handleMouseEnter"
+    @mousemove="handleMouseMove"
+    @mouseleave="handleMouseLeave"
+  >
+    <div
+      v-for="(item, index) in processedData"
+      :key="index"
+      class="layer"
+      :style="getLayerStyle(item, index)"
+    >
+      <img
+        v-if="item.tagName === 'img'"
+        :src="item.src"
+        :style="getImageStyle(index)"
+        draggable="false"
+      />
+      <video
+        v-else-if="item.tagName === 'video'"
+        :src="item.src"
+        :style="getImageStyle(index)"
+        loop
+        autoplay
+        muted
+        playsinline
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { bannerImagesData } from '../data/bannerData.js'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import bannerData from '../data/bannerData.js'
 
-// 容器引用
-const parallaxContainer = ref(null)
+const props = defineProps({
+  bannerIndex: {
+    type: Number,
+    default: 0
+  }
+})
 
-// 状态
-const loading = ref(true)
-let allImagesData = bannerImagesData
-let compensate = 0 // 视窗补偿值
-let layers = [] // DOM集合
-let initX = 0
-let moveX = 0
-let startTime = 0
-const duration = 300 // 动画持续时间（毫秒）
-let animationFrameId = null
+// 响应式数据
+const bannerContainer = ref(null)
+const compensate = ref(1) // 视窗补偿值
+const initX = ref(0) // 鼠标初始X位置
+const moveX = ref(0) // 鼠标移动距离
+const startTime = ref(0) // 动画开始时间
+const isHoming = ref(false) // 是否正在回正
+const homingProgress = ref(0) // 回正动画进度
+const animationFrameId = ref(null)
+
+// 当前使用的数据
+const currentData = computed(() => {
+  return bannerData[props.bannerIndex]?.data || bannerData[0]?.data || []
+})
+
+// 处理后的数据（应用补偿值）
+const processedData = computed(() => {
+  const cloneData = JSON.parse(JSON.stringify(currentData.value))
+  return cloneData.map(item => {
+    const processedItem = { ...item }
+    if (compensate.value !== 1) {
+      processedItem.transform[4] = item.transform[4] * compensate.value
+      processedItem.transform[5] = item.transform[5] * compensate.value
+    }
+    return processedItem
+  })
+})
 
 // 线性插值函数
 const lerp = (start, end, amt) => (1 - amt) * start + amt * end
 
-// 添加图片元素
-function initItems() {
-  if (!parallaxContainer.value) return
+// 计算补偿值
+const calculateCompensate = () => {
+  compensate.value = window.innerWidth > 1650 ? window.innerWidth / 1650 : 1
+}
+
+// 获取图层样式
+const getLayerStyle = (item, index) => {
+  const itemData = currentData.value[index]
+  if (!itemData) return {}
   
-  compensate = window.innerWidth > 1650 ? window.innerWidth / 1650 : 1
+  let m = new DOMMatrix(itemData.transform)
+  let move = moveX.value * (itemData.a || 0) // 移动X translateX
+  let s = itemData.f ? itemData.f * moveX.value + 1 : 1 // 放大比例 Scale
+  let g = moveX.value * (itemData.g || 0) // 移动Y translateY
   
-  if (layers.length <= 0) {
-    parallaxContainer.value.style.display = 'none'
-    
-    for (let i = 0; i < allImagesData.length; i++) {
-      const item = allImagesData[i]
-      
-      // 跳过没有URL的项或blob URL
-      if (!item.url || item.url.startsWith('blob:')) continue
-      
-      const layer = document.createElement('div')
-      layer.classList.add('layer')
-      layer.style.transform = new DOMMatrix(item.transform).toString()
-      
-      if (item.opacity) {
-        layer.style.opacity = item.opacity[0]
-      }
-      
-      const img = document.createElement('img')
-      img.src = item.url
-      img.style.filter = `blur(${item.blur || 0}px)`
-      img.style.width = `${item.width * compensate}px`
-      
-      layer.appendChild(img)
-      parallaxContainer.value.appendChild(layer)
+  if (isHoming.value) {
+    // 回正时处理
+    const progress = homingProgress.value
+    const currentMoveX = moveX.value
+    m.e = lerp(
+      currentMoveX * (itemData.a || 0) + itemData.transform[4],
+      itemData.transform[4],
+      progress
+    )
+    move = 0
+    s = lerp(itemData.f ? itemData.f * currentMoveX + 1 : 1, 1, progress)
+    g = lerp(itemData.g ? itemData.g * currentMoveX : 0, 0, progress)
+  }
+  
+  // 应用缩放和移动
+  m = m.multiply(new DOMMatrix([m.a * s, m.b, m.c, m.d * s, move, g]))
+  
+  // 应用旋转
+  if (itemData.deg) {
+    const deg = isHoming.value
+      ? lerp(itemData.deg * moveX.value, 0, homingProgress.value)
+      : itemData.deg * moveX.value
+    m = m.multiply(
+      new DOMMatrix([
+        Math.cos(deg),
+        Math.sin(deg),
+        -Math.sin(deg),
+        Math.cos(deg),
+        0,
+        0,
+      ])
+    )
+  }
+  
+  // 计算透明度
+  let opacity = itemData.opacity?.[0] || 1
+  if (itemData.opacity && itemData.opacity.length === 2) {
+    if (isHoming.value && moveX.value > 0) {
+      opacity = lerp(itemData.opacity[1], itemData.opacity[0], homingProgress.value)
+    } else {
+      opacity = lerp(
+        itemData.opacity[0],
+        itemData.opacity[1],
+        (moveX.value / window.innerWidth) * 2
+      )
     }
-    
-    parallaxContainer.value.style.display = ''
-    layers = parallaxContainer.value.querySelectorAll('.layer')
-  } else {
-    for (let i = 0; i < layers.length; i++) {
-      if (layers[i].firstElementChild && allImagesData[i]) {
-        layers[i].firstElementChild.style.width = `${allImagesData[i].width * compensate}px`
-      }
-    }
+  }
+  
+  return {
+    transform: m.toString(),
+    opacity: opacity
   }
 }
 
-// 鼠标移动处理
-function mouseMove() {
-  animate()
+// 获取图片/视频样式
+const getImageStyle = (index) => {
+  const itemData = currentData.value[index]
+  if (!itemData) return {}
+  
+  return {
+    width: `${itemData.width * compensate.value}px`,
+    height: `${itemData.height * compensate.value}px`,
+    filter: `blur(${itemData.blur || 0}px)`,
+    userSelect: 'none',
+    pointerEvents: 'none'
+  }
 }
 
-// 鼠标离开处理
-function leave() {
-  startTime = 0
-  if (animationFrameId) {
-    cancelAnimationFrame(animationFrameId)
+// 鼠标进入
+const handleMouseEnter = (e) => {
+  initX.value = e.pageX
+  if (isHoming.value) {
+    // 如果正在回正，取消回正动画
+    if (animationFrameId.value) {
+      cancelAnimationFrame(animationFrameId.value)
+    }
+    isHoming.value = false
+    homingProgress.value = 0
+    startTime.value = 0
   }
-  animationFrameId = requestAnimationFrame(homing)
+}
+
+// 鼠标移动
+const handleMouseMove = (e) => {
+  if (isHoming.value) return
+  moveX.value = e.pageX - initX.value
+}
+
+// 鼠标离开
+const handleMouseLeave = () => {
+  if (!isHoming.value) {
+    isHoming.value = true
+    startTime.value = 0 // 重置，让 homing 函数使用 requestAnimationFrame 的 timestamp
+    homingProgress.value = 0
+    requestAnimationFrame(homing)
+  }
 }
 
 // 回正动画
-function homing(timestamp) {
-  if (!startTime) {
-    startTime = timestamp
+const homing = (timestamp) => {
+  if (!isHoming.value) return
+  
+  if (!startTime.value) {
+    startTime.value = timestamp
   }
   
-  const elapsed = timestamp - startTime
-  const progress = Math.min(elapsed / duration, 1)
-  
-  animate(progress)
+  const elapsed = timestamp - startTime.value
+  const progress = Math.min(elapsed / 300, 1)
+  homingProgress.value = progress
   
   if (progress < 1) {
-    animationFrameId = requestAnimationFrame(homing)
+    animationFrameId.value = requestAnimationFrame(homing)
   } else {
-    animationFrameId = null
+    isHoming.value = false
+    moveX.value = 0
+    homingProgress.value = 0
+    startTime.value = 0
   }
 }
 
-// 动画执行
-function animate(progress) {
-  if (layers.length <= 0) return
-  
-  const isHoming = typeof progress === 'number'
-  
-  for (let i = 0; i < layers.length; i++) {
-    const layer = layers[i]
-    const item = allImagesData[i]
-    
-    if (!item) continue
-    
-    let m = new DOMMatrix(item.transform)
-    let move = moveX * item.a // 移动X translateX
-    let s = item.f ? item.f * moveX + 1 : 1 // 放大比例 Scale
-    let g = moveX * (item.g || 0) // 移动Y translateY
-    
-    if (isHoming) { // 回正时处理
-      m.e = lerp(moveX * item.a + item.transform[4], item.transform[4], progress)
-      move = 0
-      s = lerp(item.f ? item.f * moveX + 1 : 1, 1, progress)
-      g = lerp(item.g ? item.g * moveX : 0, 0, progress)
-    }
-    
-    m = m.multiply(new DOMMatrix([m.a * s, m.b, m.c, m.d * s, move, g]))
-    
-    if (item.deg) { // 有旋转角度
-      const deg = isHoming ? lerp(item.deg * moveX, 0, progress) : item.deg * moveX
-      m = m.multiply(new DOMMatrix([
-        Math.cos(deg), Math.sin(deg),
-        -Math.sin(deg), Math.cos(deg),
-        0, 0
-      ]))
-    }
-    
-    if (item.opacity) { // 有透明度变化
-      layer.style.opacity = isHoming && moveX > 0
-        ? lerp(item.opacity[1], item.opacity[0], progress)
-        : lerp(item.opacity[0], item.opacity[1], moveX / window.innerWidth * 2)
-    }
-    
-    layer.style.transform = m.toString()
-  }
+// 窗口大小改变
+const handleResize = () => {
+  calculateCompensate()
 }
 
-// 设置事件监听
-const setupEventListeners = () => {
-  if (!parallaxContainer.value) return
-  
-  // 鼠标滑入与滑动
-  parallaxContainer.value.addEventListener('mouseover', (e) => {
-    initX = e.pageX
-  })
-  
-  parallaxContainer.value.addEventListener('mousemove', (e) => {
-    moveX = e.pageX - initX
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId)
-    }
-    animationFrameId = requestAnimationFrame(mouseMove)
-  })
-  
-  // 鼠标已经离开了视窗或者切出浏览器，执行回正动画
-  parallaxContainer.value.addEventListener('mouseleave', leave)
-  window.addEventListener('blur', leave)
-  
-  // 添加窗口大小监听
-  window.addEventListener('resize', initItems)
+// 窗口失焦
+const handleBlur = () => {
+  handleMouseLeave()
 }
 
-// 清理事件监听
-const cleanupEventListeners = () => {
-  if (animationFrameId) {
-    cancelAnimationFrame(animationFrameId)
-  }
-  window.removeEventListener('blur', leave)
-  window.removeEventListener('resize', initItems)
-}
-
-// 组件挂载时初始化
-onMounted(async () => {
-  await nextTick()
-  initItems()
-  setupEventListeners()
-  loading.value = false
+// 初始化
+onMounted(() => {
+  calculateCompensate()
+  window.addEventListener('resize', handleResize)
+  window.addEventListener('blur', handleBlur)
 })
 
-// 组件卸载时清理
-onBeforeUnmount(() => {
-  cleanupEventListeners()
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  window.removeEventListener('blur', handleBlur)
+  if (animationFrameId.value) {
+    cancelAnimationFrame(animationFrameId.value)
+  }
+})
+
+// 监听数据变化，重新计算补偿值
+watch(() => props.bannerIndex, () => {
+  calculateCompensate()
 })
 </script>
 
 <style scoped>
-.banner-background-container {
-  width: 100%;
-  position: relative;
-}
-
-#app {
+.banner-container {
   position: relative;
   overflow: hidden;
   margin: 0 auto;
@@ -209,7 +248,6 @@ onBeforeUnmount(() => {
   min-height: 155px;
   height: 10vw;
   max-height: 240px;
-  width: 100%;
 }
 
 .layer {
@@ -223,18 +261,9 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
-.layer img {
+img,
+video {
   user-select: none;
   pointer-events: none;
-}
-
-.loading-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 14px;
-  z-index: 10;
 }
 </style>

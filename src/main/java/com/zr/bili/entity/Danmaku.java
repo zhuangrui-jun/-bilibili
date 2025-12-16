@@ -27,7 +27,7 @@ public class Danmaku {
     /**
      * 发送者id.
      */
-    private String authorId;
+    private Long authorId;
 
     /**
      * 弹幕出现时间（秒）.
@@ -55,6 +55,13 @@ public class Danmaku {
     @TableField("create_time")
     private LocalDateTime createTime;
 }
+
+
+
+
+
+
+
 
 
 

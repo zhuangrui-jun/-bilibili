@@ -2,6 +2,7 @@ package com.zr.bili.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zr.bili.context.BaseContext;
 import com.zr.bili.dto.DanmakuRequest;
 import com.zr.bili.entity.Danmaku;
 import com.zr.bili.mapper.DanmakuMapper;
@@ -20,7 +21,7 @@ public class DanmakuServiceImpl extends ServiceImpl<DanmakuMapper, Danmaku> impl
     public void saveDanmaku(DanmakuRequest request) {
         Danmaku danmaku = new Danmaku();
         danmaku.setVideoId(request.getId());
-        danmaku.setAuthorId(request.getAuthor());
+        danmaku.setAuthorId(BaseContext.getCurrentId());
         danmaku.setTime(request.getTime());
         danmaku.setText(request.getText());
         danmaku.setColor(request.getColor());
@@ -51,19 +52,6 @@ public class DanmakuServiceImpl extends ServiceImpl<DanmakuMapper, Danmaku> impl
         return result;
     }
 
-
-    
-    private Danmaku createDanmaku(String videoId, String author, Double time, Integer type, Integer color, String text) {
-        Danmaku danmaku = new Danmaku();
-        danmaku.setVideoId(videoId);
-        danmaku.setAuthorId(author);
-        danmaku.setTime(time);
-        danmaku.setType(type);
-        danmaku.setColor(color);
-        danmaku.setText(text);
-        danmaku.setCreateTime(LocalDateTime.now());
-        return danmaku;
-    }
 }
 
 

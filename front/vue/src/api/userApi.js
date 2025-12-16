@@ -43,3 +43,15 @@ export const login = (email, password) => {
   })
 }
 
+/**
+ * 获取用户详情
+ * @param {string|number} userId 用户ID
+ * @returns {Promise}
+ */
+export const getUserDetail = (userId) => {
+  return request({
+    url: `/user/detail/${userId}`,
+    method: 'get'
+  })
+}
+

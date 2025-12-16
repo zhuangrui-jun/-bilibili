@@ -30,4 +30,9 @@ public class VideoServiceImpl implements VideoService {
     public List<Video> getByCreatorId(Long creatorId) {
         return videoMapper.selectList(new QueryWrapper<Video>().eq("creator_id", creatorId));
     }
+
+    @Override
+    public Video getVideoDetail(Long id) {
+        return videoMapper.selectById(id);
+    }
 }

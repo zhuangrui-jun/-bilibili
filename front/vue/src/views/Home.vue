@@ -2,7 +2,10 @@
   <div class="home-container">
     <!-- 头部区域 -->
     <header class="header">
-      <div class="header-background"></div>
+      <!-- Banner 背景 -->
+      <div class="header-background">
+        <BannerBackground :banner-index="0" />
+      </div>
       
       <!-- 头部内容 -->
       <div class="header-content">
@@ -36,7 +39,7 @@
           <el-avatar :size="40" :src="userAvatar" class="user-avatar">
             <el-icon><User /></el-icon>
           </el-avatar>
-          <el-button type="primary" class="upload-btn">投稿</el-button>
+          <el-button type="primary" class="upload-btn" @click="goToUpload">投稿</el-button>
         </div>
       </div>
     </header>
@@ -62,8 +65,39 @@
     <!-- 视频列表区域 -->
     <div class="main-content">
       <div class="video-grid">
+        <!-- 走马灯轮播 -->
+        <div class="carousel-card" v-if="carouselVideos.length > 0">
+          <el-carousel 
+            :interval="4000" 
+            :arrow="carouselVideos.length > 1 ? 'hover' : 'never'"
+            height="280px"
+            indicator-position="outside"
+          >
+            <el-carousel-item 
+              v-for="video in carouselVideos" 
+              :key="video.id"
+            >
+              <div 
+                class="carousel-item" 
+                @click="goToVideo(video.id)"
+              >
+                <img 
+                  :src="video.coverUrl || '/placeholder.jpg'" 
+                  :alt="video.title"
+                  class="carousel-image"
+                  @error="handleImageError"
+                />
+                <div class="carousel-overlay">
+                  <h3 class="carousel-title">{{ video.title }}</h3>
+                </div>
+              </div>
+            </el-carousel-item>
+          </el-carousel>
+        </div>
+        
+        <!-- 普通视频卡片 -->
         <div 
-          v-for="video in videoList" 
+          v-for="video in displayVideoList" 
           :key="video.id"
           class="video-card"
           @click="goToVideo(video.id)"
@@ -74,17 +108,24 @@
               :alt="video.title"
               @error="handleImageError"
             />
-            <div class="video-duration" v-if="video.duration">
-              {{ formatDuration(video.duration) }}
-            </div>
             <div class="video-play-overlay">
-              <el-icon class="play-icon"><VideoPlay /></el-icon>
+              <div class="play-button">
+                <el-icon class="play-icon"><VideoPlay /></el-icon>
+              </div>
             </div>
           </div>
           <div class="video-info">
             <h3 class="video-title" :title="video.title">{{ video.title }}</h3>
             <div class="video-meta">
-              <span class="video-views">{{ formatViews(video.times) }}播放</span>
+              <span class="video-author" v-if="video.creatorName || video.creatorId">
+                <span 
+                  class="author-name" 
+                  @click.stop="goToUserProfile(video.creatorId)"
+                  :title="video.creatorName || '未知作者'"
+                >
+                  {{ video.creatorName || '未知作者' }}
+                </span>
+              </span>
               <span class="video-date">{{ formatDate(video.createdTime) }}</span>
             </div>
           </div>
@@ -110,6 +151,7 @@ import { useRouter } from 'vue-router'
 import { getAllVideos } from '../api/videoApi.js'
 import { ElMessage } from 'element-plus'
 import { Search, User, VideoPlay } from '@element-plus/icons-vue'
+import BannerBackground from './BannerBackground.vue'
 
 const router = useRouter()
 
@@ -139,6 +181,12 @@ const activeCategory = ref('all')
 // 视频列表
 const videoList = ref([])
 
+// 走马灯视频列表（取前5个）
+const carouselVideos = ref([])
+
+// 显示的视频列表（排除走马灯中的视频）
+const displayVideoList = ref([])
+
 // 加载状态
 const loading = ref(false)
 
@@ -148,7 +196,11 @@ const fetchVideos = async () => {
   try {
     const response = await getAllVideos()
     if (response && response.code === 200) {
-      videoList.value = response.data || []
+      videoList.value = response.data
+      // 设置走马灯视频（取前5个）
+      carouselVideos.value = response.data.slice(0, 5)
+      // 显示的视频列表（排除走马灯中的视频）
+      displayVideoList.value = response.data.slice(5)
     } else {
       ElMessage.error(response?.msg || '获取视频列表失败')
     }
@@ -157,18 +209,6 @@ const fetchVideos = async () => {
     ElMessage.error('获取视频列表失败')
   } finally {
     loading.value = false
-  }
-}
-
-// 格式化播放量
-const formatViews = (views) => {
-  if (!views) return '0'
-  if (views < 10000) {
-    return views.toString()
-  } else if (views < 100000000) {
-    return (views / 10000).toFixed(1) + '万'
-  } else {
-    return (views / 100000000).toFixed(1) + '亿'
   }
 }
 
@@ -188,26 +228,31 @@ const formatDate = (date) => {
   return `${Math.floor(days / 365)}年前`
 }
 
-// 格式化时长
-const formatDuration = (seconds) => {
-  if (!seconds) return '00:00'
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = seconds % 60
-  if (h > 0) {
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  }
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
 // 图片加载错误处理
 const handleImageError = (e) => {
   e.target.src = 'https://via.placeholder.com/300x200?text=No+Image'
 }
 
-// 跳转到视频详情页
+// 跳转到视频播放页
 const goToVideo = (videoId) => {
-  router.push(`/video/${videoId}`)
+  router.push({
+    path: '/test',
+    query: { videoId: videoId }
+  })
+}
+
+// 跳转到用户主页
+const goToUserProfile = (userId) => {
+  if (!userId) return
+  router.push({
+    path: '/profile',
+    query: { userId: userId }
+  })
+}
+
+// 跳转到投稿页面
+const goToUpload = () => {
+  router.push('/upload')
 }
 
 
@@ -226,9 +271,12 @@ onMounted(() => {
 /* 头部样式 */
 .header {
   position: relative;
-  background: linear-gradient(180deg, #fb7299 0%, #ff6b9d 100%);
   padding: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  min-height: 155px;
+  height: 10vw;
+  max-height: 240px;
 }
 
 .header-background {
@@ -236,33 +284,23 @@ onMounted(() => {
   top: 0;
   left: 0;
   right: 0;
+  width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, 
-    rgba(251, 114, 153, 0.95) 0%, 
-    rgba(255, 107, 157, 0.85) 30%,
-    rgba(255, 133, 173, 0.9) 60%,
-    rgba(251, 114, 153, 0.95) 100%
-  );
-  background-size: 200% 200%;
-  animation: gradientShift 10s ease infinite;
+  z-index: 0;
+  overflow: hidden;
 }
 
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+.header-background :deep(.banner-container) {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  min-width: unset;
 }
 
 
 .header-content {
   position: relative;
-  z-index: 1;
+  z-index: 10;
   max-width: 1400px;
   margin: 0 auto;
   padding: 12px 24px;
@@ -404,8 +442,8 @@ onMounted(() => {
 /* 视频网格 */
 .video-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
 }
 
 .video-card {
@@ -418,8 +456,7 @@ onMounted(() => {
 }
 
 .video-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .video-thumbnail {
@@ -428,6 +465,7 @@ onMounted(() => {
   padding-top: 56.25%; /* 16:9 比例 */
   background-color: #f0f0f0;
   overflow: hidden;
+  border-radius: 8px 8px 0 0;
 }
 
 .video-thumbnail img {
@@ -437,48 +475,52 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s;
+  transition: transform 0.3s ease;
 }
 
 .video-card:hover .video-thumbnail img {
-  transform: scale(1.05);
-}
-
-.video-duration {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: #fff;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
+  transform: scale(1.03);
 }
 
 .video-play-overlay {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 60px;
-  height: 60px;
-  background-color: rgba(0, 0, 0, 0.6);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0);
+  transition: background-color 0.3s ease;
+  pointer-events: none;
+}
+
+.video-card:hover .video-play-overlay {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.play-button {
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.3s;
+  transform: scale(0.8);
+  transition: all 0.3s ease;
 }
 
-.video-card:hover .video-play-overlay {
+.video-card:hover .play-button {
   opacity: 1;
+  transform: scale(1);
 }
 
 .play-icon {
   font-size: 24px;
   color: #fff;
-  margin-left: 4px;
+  margin-left: 3px;
 }
 
 .video-info {
@@ -503,14 +545,103 @@ onMounted(() => {
 .video-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
   font-size: 12px;
   color: #909399;
+  margin-top: 8px;
+  line-height: 1.5;
 }
 
-.video-views::after {
+.video-author {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #909399;
+  flex: 1;
+  min-width: 0;
+}
+
+.video-author::after {
   content: ' · ';
-  margin-left: 8px;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.author-name {
+  cursor: pointer;
+  color: #606266;
+  transition: color 0.2s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.author-name:hover {
+  color: #409eff;
+}
+
+.video-date {
+  color: #909399;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 走马灯卡片 */
+.carousel-card {
+  grid-column: span 2;
+  background-color: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.carousel-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.carousel-item {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.carousel-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.carousel-item:hover .carousel-image {
+  transform: scale(1.05);
+}
+
+.carousel-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  padding: 20px;
+  padding-top: 40px;
+}
+
+.carousel-title {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* 加载状态 */
@@ -525,6 +656,16 @@ onMounted(() => {
 }
 
 /* 响应式设计 */
+@media (max-width: 1200px) {
+  .video-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .carousel-card {
+    grid-column: span 3;
+  }
+}
+
 @media (max-width: 768px) {
   .header-content {
     flex-wrap: wrap;
@@ -547,8 +688,21 @@ onMounted(() => {
   }
   
   .video-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
+  }
+  
+  .carousel-card {
+    grid-column: span 2;
+  }
+  
+  .carousel-overlay {
+    padding: 16px;
+    padding-top: 30px;
+  }
+  
+  .carousel-title {
+    font-size: 14px;
   }
   
   .main-content {

@@ -44,6 +44,24 @@ const router = createRouter({
             },
             component: () => import('../views/BannerBackground.vue')
         },
+        {
+            path: '/profile',
+            name: 'profile',
+            meta: {
+                title: "用户主页",
+                requireAuth: true
+            },
+            component: () => import('../views/Profile.vue')
+        },
+        {
+            path: '/upload',
+            name: 'upload',
+            meta: {
+                title: "投稿",
+                requireAuth: true
+            },
+            component: () => import('../views/Upload.vue')
+        },
 
 
     ],

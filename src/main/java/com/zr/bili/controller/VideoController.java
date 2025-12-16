@@ -8,6 +8,7 @@ import com.zr.bili.utils.OssUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,12 +29,6 @@ public class VideoController {
     private final OssUtil ossUtil;
 
     private final AliProperties ali;
-    @PostMapping("/save")
-    public Result<String> saveVideo(Video video){
-        //todo 上传到oss
-         videoService.saveVideo(video);
-         return Result.success("视频上传成功");
-    }
 
     //上传图片，待用
     @PostMapping("/upload")
@@ -68,7 +63,13 @@ public class VideoController {
     @GetMapping("/list")
     public Result<List<Video>> getAllVideos() {
         List<Video> videos = videoService.getAllVideos();
+        //todo 返回的信息过多，要精简
         return Result.success(videos);
+    }
+    @GetMapping("/detail/{id}")
+    public Result<Video> getVideoDetail(@PathVariable Long id) {
+        Video video = videoService.getVideoDetail(id);
+        return Result.success(video);
     }
 
 }

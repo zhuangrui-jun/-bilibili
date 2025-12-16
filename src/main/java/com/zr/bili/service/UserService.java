@@ -7,4 +7,6 @@ public interface UserService {
     void register(String username,String password,String email);
 
     User login(String email, String password);
+
+    User getUserById(Long userId);
 }

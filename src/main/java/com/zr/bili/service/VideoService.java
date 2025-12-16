@@ -13,4 +13,5 @@ public interface VideoService {
     List<Video> getByCreatorId(Long creatorId);
 
 
+    Video getVideoDetail(Long id);
 }

@@ -14,7 +14,7 @@ public class VideoDraft {
 
     private String title;
 
-    private String VideoUrl;
+    private String videoUrl;
 
     private Long creatorId;
 

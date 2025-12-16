@@ -106,10 +106,12 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
 import Danmaku from 'danmaku'
 import { getDanmakuList, sendDanmaku as sendDanmakuApi } from '../api/danmakuApi.js'
+import { getVideoDetail } from '../api/videoApi.js'
 import { ElMessage } from 'element-plus'
 import { 
   ChatDotRound, 
@@ -120,9 +122,12 @@ import {
   ArrowDown
 } from '@element-plus/icons-vue'
 
+const route = useRoute()
+
 // 视频配置
-const videoUrl = ref('https://zhangrui123.oss-cn-beijing.aliyuncs.com/%E3%80%8AA%E5%A4%A7%E3%80%8B%E7%AC%AC%E4%BA%8C%E5%8D%81%E4%BA%8C%E8%AF%9D%EF%BC%9A%E3%80%8E%E5%86%8D%E9%81%87C%E5%9B%A2%E3%80%8F.mp4')
-const videoId = ref('test-video-001') // 视频ID，用于弹幕池
+const videoUrl = ref('')
+const videoId = ref('') // 视频ID，用于弹幕池
+const videoInfo = ref(null) // 视频详细信息
 
 // 播放器实例
 const videoElement = ref(null)
@@ -393,10 +398,14 @@ const sendDanmaku = async () => {
   }
   const danmakuMode = danmakuTypeMap[danmakuType.value] || 'scroll'
 
+  // 获取当前用户信息
+  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  const authorName = user.username || user.id || 'User'
+
   // 构建发送数据，确保所有字段都有值
   const danmakuDataToSend = {
     id: videoId.value || 'test-video-001',
-    author: 'User',
+    author: authorName,
     time: currentTime,
     text: danmakuText.value.trim(),
     color: colorDecimal,
@@ -438,7 +447,7 @@ const sendDanmaku = async () => {
       currentTime,
       danmakuType.value,
       colorDecimal,
-      'User',
+      authorName,
       danmakuText.value
     ])
 
@@ -485,13 +494,44 @@ watch(videoUrl, () => {
   }
 })
 
+// 加载视频详情
+const loadVideoDetail = async (id) => {
+  try {
+    const response = await getVideoDetail(id)
+    if (response && response.code === 200 && response.data) {
+      videoInfo.value = response.data
+      // 默认使用url7（720p），如果没有则使用url1（1080p），最后使用url4（480p）
+      const url = response.data.videoUrl7 || response.data.videoUrl1 || response.data.videoUrl4 || ''
+      if (!url) {
+        ElMessage.error('视频播放地址不存在')
+        return
+      }
+      videoUrl.value = url
+      videoId.value = String(response.data.id) // 确保videoId是字符串格式
+      
+      // 加载完视频信息后初始化播放器
+      await nextTick()
+      setTimeout(() => {
+        initPlayer()
+      }, 100)
+    } else {
+      ElMessage.error(response?.msg || '获取视频详情失败')
+    }
+  } catch (error) {
+    console.error('加载视频详情失败:', error)
+    ElMessage.error('加载视频详情失败')
+  }
+}
+
 // 组件挂载
 onMounted(async () => {
-  // 等待 DOM 渲染完成
-  await nextTick()
-  setTimeout(() => {
-    initPlayer()
-  }, 100)
+  // 从路由参数获取视频ID
+  const id = route.query.videoId
+  if (id) {
+    await loadVideoDetail(id)
+  } else {
+    ElMessage.error('缺少视频ID参数')
+  }
 })
 
 // 组件卸载
