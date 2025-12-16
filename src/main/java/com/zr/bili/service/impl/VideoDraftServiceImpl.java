@@ -30,11 +30,12 @@ public class VideoDraftServiceImpl implements VideoDraftService {
     }
 
     @Override
-    public List<VideoDraft> getDraftsByCreatorId(Long creatorId) {
+    public VideoDraft getDraftsByCreatorId(Long creatorId) {
         QueryWrapper<VideoDraft> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("creator_id", creatorId);
-        queryWrapper.orderByDesc("updated_time");
-        return videoDraftMapper.selectList(queryWrapper);
+        queryWrapper.eq("creator_id", creatorId)
+                .orderByDesc("created_time")
+                .last("LIMIT 1");
+        return videoDraftMapper.selectOne(queryWrapper);
     }
 
     @Override
@@ -48,6 +49,8 @@ public class VideoDraftServiceImpl implements VideoDraftService {
         videoDraftMapper.deleteById(id);
     }
 }
+
+
 
 
 

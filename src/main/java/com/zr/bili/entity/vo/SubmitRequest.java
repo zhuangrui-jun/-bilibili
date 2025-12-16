@@ -7,4 +7,5 @@ import lombok.Data;
         private Long draftId;
         private String title;
         private String videoUrl;
+        private String coverUrl;
     }

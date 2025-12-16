@@ -268,7 +268,7 @@ const handleSendCode = async () => {
         }
       }, 1000)
     } else {
-      ElMessage.error(res.msg || '发送验证码失败')
+      ElMessage.error(res.msg || '发送验证 码失败')
     }
   } catch (error) {
     // 网络错误或其他异常，已在request拦截器中处理

@@ -19,7 +19,7 @@ public interface VideoDraftService {
     /**
      * 根据创建者ID获取草稿列表
      */
-    List<VideoDraft> getDraftsByCreatorId(Long creatorId);
+    VideoDraft getDraftsByCreatorId(Long creatorId);
 
     /**
      * 更新草稿
@@ -31,6 +31,8 @@ public interface VideoDraftService {
      */
     void deleteDraft(Long id);
 }
+
+
 
 
 

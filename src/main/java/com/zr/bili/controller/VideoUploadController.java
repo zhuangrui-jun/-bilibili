@@ -28,16 +28,30 @@ public class VideoUploadController {
     private final VideoService videoService;
 
     /**
-     * 保存草稿
+     * 保存草稿（自动判断是更新还是创建）
      */
     @PostMapping("/draft/save")
     public Result<Map<String, Object>> saveDraft(@RequestBody DraftRequest request) {
-            VideoDraft draft = new VideoDraft();
-            draft.setTitle(request.getTitle());
-            draft.setVideoUrl(request.getVideoUrl());
-            draft.setCreatorId(BaseContext.getCurrentId());
-
-            Long draftId = videoDraftService.saveDraft(draft);
+            // 先查询是否有草稿
+            VideoDraft existingDraft = videoDraftService.getDraftsByCreatorId(BaseContext.getCurrentId());
+            
+            Long draftId;
+            if (existingDraft != null) {
+                // 更新现有草稿
+                existingDraft.setTitle(request.getTitle());
+                existingDraft.setVideoUrl(request.getVideoUrl());
+                existingDraft.setCoverUrl(request.getCoverUrl());
+                videoDraftService.updateDraft(existingDraft);
+                draftId = existingDraft.getId();
+            } else {
+                // 如果没有草稿，创建新草稿
+                VideoDraft draft = new VideoDraft();
+                draft.setTitle(request.getTitle());
+                draft.setVideoUrl(request.getVideoUrl());
+                draft.setCreatorId(BaseContext.getCurrentId());
+                draft.setCoverUrl(request.getCoverUrl());
+                draftId = videoDraftService.saveDraft(draft);
+            }
 
             Map<String, Object> result = new HashMap<>();
             result.put("id", draftId);
@@ -45,12 +59,12 @@ public class VideoUploadController {
     }
 
     /**
-     * 获取草稿列表
+     * 根据创建者ID获取草稿列表
      */
     @GetMapping("/draft/list")
-    public Result<List<VideoDraft>> getDraftList() {
-            List<VideoDraft> drafts = videoDraftService.getDraftsByCreatorId(BaseContext.getCurrentId());
-            return Result.success(drafts);
+    public Result<VideoDraft> getDraftList() {
+            VideoDraft draft = videoDraftService.getDraftsByCreatorId(BaseContext.getCurrentId());
+            return Result.success(draft);
     }
 
 
@@ -73,6 +87,7 @@ public class VideoUploadController {
             video.setTitle(request.getTitle());
             video.setCreatorId(BaseContext.getCurrentId());
             video.setVideoUrl1(request.getVideoUrl()); // 存储用户上传的视频URL
+            video.setCoverUrl(request.getCoverUrl()); // 存储封面URL
             video.setCreatedTime(LocalDateTime.now());
             video.setUpdatedTime(LocalDateTime.now());
             video.setTimes(0L);
