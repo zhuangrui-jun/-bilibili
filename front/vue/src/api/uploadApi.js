@@ -38,14 +38,12 @@ export const getDraftList = () => {
 }
 
 /**
- * 获取草稿详情
- * @param {string|number} draftId 草稿ID
+ * 删除草稿
  * @returns {Promise}
  */
-export const getDraftDetail = (draftId) => {
+export const deleteDraft = () => {
   return request({
-    url: `/video/draft/${draftId}`,
-    method: 'get'
+    url: '/video/draft/delete',
+    method: 'delete'
   })
 }
-

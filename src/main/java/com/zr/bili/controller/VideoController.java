@@ -72,4 +72,10 @@ public class VideoController {
         return Result.success(video);
     }
 
+    @GetMapping("/list/{id}")
+        public Result<List<Video>> getListsByCreatorId(@PathVariable Long id){
+            return Result.success(videoService.getByCreatorId(id));
+        }
+
+
 }

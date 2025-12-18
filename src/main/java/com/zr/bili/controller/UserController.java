@@ -117,6 +117,8 @@ public class UserController {
         UserInfoVO userVO = new UserInfoVO();
         userVO.setId(user.getId());
         userVO.setUsername(user.getUsername());
+        userVO.setEmail(user.getEmail());
+        userVO.setAvatar(user.getAvatar());
         return Result.success(userVO);
     }
 }

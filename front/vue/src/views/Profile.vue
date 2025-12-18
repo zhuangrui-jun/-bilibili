@@ -40,6 +40,67 @@
           </div>
         </div>
       </div>
+
+      <!-- 导航标签 -->
+      <div class="profile-tabs">
+        <div 
+          class="tab-item" 
+          :class="{ active: activeTab === 'videos' }"
+          @click="activeTab = 'videos'"
+        >
+          投稿
+        </div>
+      </div>
+
+      <!-- 视频列表 -->
+      <div v-if="activeTab === 'videos'" class="videos-section">
+        <div class="video-grid">
+          <div 
+            v-for="video in videoList" 
+            :key="video.id"
+            class="video-card"
+            @click="goToVideo(video.id)"
+          >
+            <div class="video-thumbnail">
+              <img 
+                :src="video.coverUrl || '/placeholder.jpg'" 
+                :alt="video.title"
+                @error="handleImageError"
+              />
+              <div class="video-play-overlay">
+                <div class="play-button">
+                  <el-icon class="play-icon"><VideoPlay /></el-icon>
+                </div>
+              </div>
+            </div>
+            <div class="video-info">
+              <h3 class="video-title" :title="video.title">{{ video.title }}</h3>
+              <div class="video-meta">
+                <span class="video-author" v-if="video.creatorName || video.creatorId">
+                  <span 
+                    class="author-name" 
+                    @click.stop="goToUserProfile(video.creatorId)"
+                    :title="video.creatorName || '未知作者'"
+                  >
+                    {{ video.creatorName || '未知作者' }}
+                  </span>
+                </span>
+                <span class="video-date">{{ formatDate(video.createdTime) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 加载状态 -->
+        <div v-if="videoLoading" class="loading-container">
+          <el-skeleton :rows="4" animated />
+        </div>
+        
+        <!-- 空状态 -->
+        <div v-if="!videoLoading && videoList.length === 0" class="empty-container">
+          <el-empty description="暂无投稿视频" />
+        </div>
+      </div>
     </div>
 
     <!-- 加载状态 -->
@@ -58,8 +119,9 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getUserDetail } from '../api/userApi.js'
+import { getAllVideos } from '../api/videoApi.js'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, User } from '@element-plus/icons-vue'
+import { ArrowLeft, User, VideoPlay } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,6 +129,13 @@ const router = useRouter()
 const userInfo = ref(null)
 const loading = ref(false)
 const error = ref(false)
+
+// 标签页
+const activeTab = ref('videos')
+
+// 视频列表
+const videoList = ref([])
+const videoLoading = ref(false)
 
 // 加载用户信息
 const loadUserInfo = async (userId) => {
@@ -94,6 +163,62 @@ const goBack = () => {
   router.back()
 }
 
+// 获取视频列表
+const fetchVideos = async () => {
+  videoLoading.value = true
+  try {
+    const response = await getAllVideos()
+    if (response && response.code === 200) {
+      videoList.value = response.data || []
+    } else {
+      ElMessage.error(response?.msg || '获取视频列表失败')
+    }
+  } catch (error) {
+    console.error('获取视频列表失败:', error)
+    ElMessage.error('获取视频列表失败')
+  } finally {
+    videoLoading.value = false
+  }
+}
+
+// 格式化日期
+const formatDate = (dateString) => {
+  if (!dateString) return '未知时间'
+  const date = new Date(dateString)
+  const now = new Date()
+  const diff = now - date
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  
+  if (days === 0) return '今天'
+  if (days === 1) return '昨天'
+  if (days < 7) return `${days}天前`
+  if (days < 30) return `${Math.floor(days / 7)}周前`
+  if (days < 365) return `${Math.floor(days / 30)}个月前`
+  return `${Math.floor(days / 365)}年前`
+}
+
+// 图片加载错误处理
+const handleImageError = (e) => {
+  e.target.src = 'https://via.placeholder.com/300x200?text=No+Image'
+}
+
+// 跳转到视频播放页
+const goToVideo = (videoId) => {
+  router.push({
+    path: '/test',
+    query: { videoId: videoId }
+  })
+}
+
+// 跳转到用户主页
+const goToUserProfile = (userId) => {
+  if (!userId) return
+  router.push({
+    path: '/profile',
+    query: { userId: userId }
+  })
+}
+
 // 组件挂载
 onMounted(() => {
   const userId = route.query.userId
@@ -103,6 +228,7 @@ onMounted(() => {
     error.value = true
     ElMessage.error('缺少用户ID参数')
   }
+  fetchVideos()
 })
 </script>
 
@@ -235,7 +361,187 @@ onMounted(() => {
   text-align: center;
 }
 
+/* 导航标签 */
+.profile-tabs {
+  margin-top: 24px;
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.tab-item {
+  padding: 16px 24px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #606266;
+  transition: all 0.3s;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+
+.tab-item:hover {
+  color: #fb7299;
+}
+
+.tab-item.active {
+  color: #fb7299;
+  border-bottom-color: #fb7299;
+  font-weight: 500;
+}
+
+/* 视频列表区域 */
+.videos-section {
+  margin-top: 24px;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.video-card {
+  background-color: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.video-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.video-thumbnail {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%; /* 16:9 比例 */
+  background-color: #f0f0f0;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+}
+
+.video-thumbnail img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.video-card:hover .video-thumbnail img {
+  transform: scale(1.03);
+}
+
+.video-play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0);
+  transition: background-color 0.3s ease;
+  pointer-events: none;
+}
+
+.video-card:hover .video-play-overlay {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.play-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.video-card:hover .play-button {
+  opacity: 1;
+}
+
+.play-icon {
+  font-size: 24px;
+  color: #fb7299;
+  margin-left: 4px;
+}
+
+.video-info {
+  padding: 12px;
+}
+
+.video-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  margin: 0 0 8px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+  min-height: 40px;
+}
+
+.video-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #909399;
+}
+
+.video-author {
+  flex: 1;
+  overflow: hidden;
+}
+
+.author-name {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.author-name:hover {
+  color: #fb7299;
+}
+
+.video-date {
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.empty-container {
+  padding: 80px 20px;
+  text-align: center;
+  background-color: #fff;
+  border-radius: 12px;
+  margin-top: 24px;
+}
+
 /* 响应式设计 */
+@media (max-width: 1200px) {
+  .video-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .user-card {
     flex-direction: column;
@@ -251,8 +557,23 @@ onMounted(() => {
   .detail-item {
     justify-content: center;
   }
+
+  .video-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .video-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
+
+
+
+
 
 
 

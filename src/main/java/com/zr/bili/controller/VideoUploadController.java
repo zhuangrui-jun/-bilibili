@@ -31,31 +31,32 @@ public class VideoUploadController {
      * 保存草稿（自动判断是更新还是创建）
      */
     @PostMapping("/draft/save")
-    public Result<Map<String, Object>> saveDraft(@RequestBody DraftRequest request) {
+    public Result<VideoDraft> saveDraft(@RequestBody DraftRequest request) {
             // 先查询是否有草稿
             VideoDraft existingDraft = videoDraftService.getDraftsByCreatorId(BaseContext.getCurrentId());
             
-            Long draftId;
+            VideoDraft draft;
             if (existingDraft != null) {
                 // 更新现有草稿
                 existingDraft.setTitle(request.getTitle());
                 existingDraft.setVideoUrl(request.getVideoUrl());
                 existingDraft.setCoverUrl(request.getCoverUrl());
                 videoDraftService.updateDraft(existingDraft);
-                draftId = existingDraft.getId();
+                draft = existingDraft;
             } else {
                 // 如果没有草稿，创建新草稿
-                VideoDraft draft = new VideoDraft();
+                draft = new VideoDraft();
                 draft.setTitle(request.getTitle());
                 draft.setVideoUrl(request.getVideoUrl());
                 draft.setCreatorId(BaseContext.getCurrentId());
                 draft.setCoverUrl(request.getCoverUrl());
-                draftId = videoDraftService.saveDraft(draft);
+                Long draftId = videoDraftService.saveDraft(draft);
+                // 重新查询以获取完整的草稿对象（包含自动生成的id等字段）
+                draft = videoDraftService.getDraftById(draftId);
             }
 
-            Map<String, Object> result = new HashMap<>();
-            result.put("id", draftId);
-            return Result.success(result);
+            // 直接返回VideoDraft对象，@JsonSerialize注解会自动生效，id会被序列化为String
+            return Result.success(draft);
     }
 
     /**
@@ -64,6 +65,28 @@ public class VideoUploadController {
     @GetMapping("/draft/list")
     public Result<VideoDraft> getDraftList() {
             VideoDraft draft = videoDraftService.getDraftsByCreatorId(BaseContext.getCurrentId());
+            return Result.success(draft);
+    }
+
+    @DeleteMapping("/draft/delete")
+    public Result<String> deleteDraft() {
+            videoDraftService.deleteDraft(BaseContext.getCurrentId());
+            return Result.success("草稿删除成功");
+    }
+
+    /**
+     * 根据ID获取草稿详情
+     */
+    @GetMapping("/draft/{draftId}")
+    public Result<VideoDraft> getDraftDetail(@PathVariable Long draftId) {
+            VideoDraft draft = videoDraftService.getDraftById(draftId);
+            if (draft == null) {
+                return Result.error("草稿不存在");
+            }
+            // 检查权限：只能查看自己的草稿
+            if (!draft.getCreatorId().equals(BaseContext.getCurrentId())) {
+                return Result.error("无权限访问此草稿");
+            }
             return Result.success(draft);
     }
 

@@ -48,7 +48,7 @@ const router = createRouter({
             path: '/profile',
             name: 'profile',
             meta: {
-                title: "用户主页",
+                title: "个人主页",
                 requireAuth: true
             },
             component: () => import('../views/Profile.vue')
@@ -61,6 +61,15 @@ const router = createRouter({
                 requireAuth: true
             },
             component: () => import('../views/Upload.vue')
+        },
+        {
+            path: '/video-submit/:draftId',
+            name: 'videoSubmit',
+            meta: {
+                title: "完善视频信息",
+                requireAuth: true
+            },
+            component: () => import('../views/VideoSubmit.vue')
         },
 
 

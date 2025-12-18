@@ -36,7 +36,7 @@
         </div>
         
         <div class="header-right">
-          <el-avatar :size="40" :src="userAvatar" class="user-avatar">
+          <el-avatar :size="40" :src="userAvatar" class="user-avatar" @click="goToProfile">
             <el-icon><User /></el-icon>
           </el-avatar>
           <el-button type="primary" class="upload-btn" @click="goToUpload">投稿</el-button>
@@ -149,6 +149,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getAllVideos } from '../api/videoApi.js'
+import { getUserDetail } from '../api/userApi.js'
 import { ElMessage } from 'element-plus'
 import { Search, User, VideoPlay } from '@element-plus/icons-vue'
 import BannerBackground from './BannerBackground.vue'
@@ -255,10 +256,42 @@ const goToUpload = () => {
   router.push('/upload')
 }
 
+// 跳转到个人主页
+const goToProfile = () => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  if (user.id) {
+    router.push({
+      path: '/profile',
+      query: { userId: user.id }
+    })
+  } else {
+    ElMessage.warning('用户信息不存在')
+  }
+}
+
+// 获取用户头像
+const fetchUserAvatar = async () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    console.log("user:",user)
+    if (user.id) {
+      const res = await getUserDetail(user.id)
+      if (res.code === 200 && res.data) {
+        // 如果后端返回了头像URL，使用它
+        if (res.data.avatar) {
+          userAvatar.value = res.data.avatar
+        }
+      }
+    }
+  } catch (error) {
+    console.error('获取用户头像失败:', error)
+  }
+}
 
 // 组件挂载时初始化
 onMounted(() => {
   fetchVideos()
+  fetchUserAvatar()
 })
 </script>
 
