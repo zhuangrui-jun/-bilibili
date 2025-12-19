@@ -288,6 +288,7 @@ const handleLogin = async () => {
     loginLoading.value = true
     try {
       const res = await login(loginForm.value.email, loginForm.value.password)
+      console.log("res:",res)
       if (res.code === 200 && res.data) {
         ElMessage.success('登录成功')
         // 保存用户信息和token

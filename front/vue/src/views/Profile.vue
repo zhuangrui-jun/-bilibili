@@ -100,6 +100,17 @@
         <div v-if="!videoLoading && videoList.length === 0" class="empty-container">
           <el-empty description="暂无投稿视频" />
         </div>
+        
+        <!-- 分页 -->
+        <div v-if="total > pageSize" class="pagination-container">
+          <el-pagination
+            v-model:current-page="currentPage"
+            :page-size="pageSize"
+            :total="total"
+            layout="prev, pager, next"
+            @current-change="handlePageChange"
+          />
+        </div>
       </div>
     </div>
 
@@ -119,7 +130,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getUserDetail } from '../api/userApi.js'
-import { getAllVideos } from '../api/videoApi.js'
+import { getVideoPage } from '../api/videoApi.js'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, User, VideoPlay } from '@element-plus/icons-vue'
 
@@ -136,6 +147,9 @@ const activeTab = ref('videos')
 // 视频列表
 const videoList = ref([])
 const videoLoading = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(12)
+const total = ref(0)
 
 // 加载用户信息
 const loadUserInfo = async (userId) => {
@@ -163,13 +177,21 @@ const goBack = () => {
   router.back()
 }
 
-// 获取视频列表
+// 获取视频列表（分页）
 const fetchVideos = async () => {
+  const userId = route.query.userId
+  if (!userId) return
+  
   videoLoading.value = true
   try {
-    const response = await getAllVideos()
-    if (response && response.code === 200) {
-      videoList.value = response.data || []
+    const response = await getVideoPage({
+      creatorId: userId,
+      page: currentPage.value,
+      pageSize: pageSize.value
+    })
+    if (response && response.code === 200 && response.data) {
+      videoList.value = response.data.records || []
+      total.value = response.data.total || 0
     } else {
       ElMessage.error(response?.msg || '获取视频列表失败')
     }
@@ -179,6 +201,12 @@ const fetchVideos = async () => {
   } finally {
     videoLoading.value = false
   }
+}
+
+// 分页切换
+const handlePageChange = (page) => {
+  currentPage.value = page
+  fetchVideos()
 }
 
 // 格式化日期
@@ -414,7 +442,6 @@ onMounted(() => {
 
 .video-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
 }
 
 .video-thumbnail {
@@ -462,23 +489,23 @@ onMounted(() => {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transform: scale(0.8);
+  transition: all 0.3s ease;
 }
 
 .video-card:hover .play-button {
   opacity: 1;
+  transform: scale(1);
 }
 
 .play-icon {
   font-size: 24px;
-  color: #fb7299;
-  margin-left: 4px;
+  color: #fff;
+  margin-left: 3px;
 }
 
 .video-info {
@@ -533,6 +560,15 @@ onMounted(() => {
   background-color: #fff;
   border-radius: 12px;
   margin-top: 24px;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+  padding: 16px;
+  background-color: #fff;
+  border-radius: 8px;
 }
 
 /* 响应式设计 */

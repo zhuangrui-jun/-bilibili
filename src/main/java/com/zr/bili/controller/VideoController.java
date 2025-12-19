@@ -1,7 +1,9 @@
 package com.zr.bili.controller;
 
+import com.zr.bili.dto.VideoPageDTO;
 import com.zr.bili.entity.Video;
 import com.zr.bili.properties.AliProperties;
+import com.zr.bili.result.PageResult;
 import com.zr.bili.result.Result;
 import com.zr.bili.service.VideoService;
 import com.zr.bili.utils.OssUtil;
@@ -77,5 +79,9 @@ public class VideoController {
             return Result.success(videoService.getByCreatorId(id));
         }
 
+        @GetMapping("/page")
+        public Result<PageResult> getPageResult(VideoPageDTO videoPageDTO){
+            return Result.success(videoService.getPageResult(videoPageDTO));
+        }
 
 }

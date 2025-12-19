@@ -23,5 +23,16 @@ export const getVideoDetail = (videoId) => {
   })
 }
 
-
+/**
+ * 分页获取用户视频列表
+ * @param {object} params { creatorId, page, pageSize }
+ * @returns {Promise}
+ */
+export const getVideoPage = (params) => {
+  return request({
+    url: '/video/page',
+    method: 'get',
+    params
+  })
+}
 
