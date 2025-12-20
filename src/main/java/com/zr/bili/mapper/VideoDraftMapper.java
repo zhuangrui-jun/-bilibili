@@ -17,3 +17,6 @@ public interface VideoDraftMapper extends BaseMapper<VideoDraft> {
 
 
 
+
+
+

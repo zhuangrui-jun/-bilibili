@@ -12,6 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -59,5 +63,22 @@ public class UserServiceImpl implements UserService {
     @Override
     public User getUserById(Long userId) {
         return userMapper.selectById(userId);
+    }
+    
+    @Override
+    public Map<Long, User> getUsersByIds(List<Long> userIds) {
+        // 如果列表为空，直接返回空Map
+        if (userIds == null || userIds.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        // 使用IN查询批量获取用户
+        QueryWrapper<User> wrapper = new QueryWrapper<>();
+        wrapper.in("id", userIds);
+        List<User> users = userMapper.selectList(wrapper);
+        
+        // 转换为Map，key是用户ID，value是用户对象
+        return users.stream()
+            .collect(Collectors.toMap(User::getId, user -> user));
     }
 }
