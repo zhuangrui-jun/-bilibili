@@ -101,6 +101,182 @@
         </el-button>
       </div>
     </div>
+
+    <!-- 评论区域 -->
+    <div class="comment-section">
+      <div class="comment-header">
+        <h3>评论区</h3>
+        <el-button 
+          type="primary" 
+          size="small"
+          @click="showCommentInput = !showCommentInput"
+        >
+          {{ showCommentInput ? '取消' : '发表评论' }}
+        </el-button>
+      </div>
+
+      <!-- 评论输入框 -->
+      <div v-if="showCommentInput" class="comment-input-area">
+        <el-input
+          v-model="commentText"
+          type="textarea"
+          :rows="3"
+          placeholder="发条友善的评论吧~"
+          maxlength="500"
+          show-word-limit
+        />
+        <div class="comment-input-actions">
+          <el-button @click="cancelComment">取消</el-button>
+          <el-button 
+            type="primary" 
+            @click="submitComment"
+            :disabled="!commentText.trim()"
+          >
+            发表
+          </el-button>
+        </div>
+      </div>
+
+      <!-- 评论列表 -->
+      <div class="comment-list" v-loading="commentLoading">
+        <div v-if="comments.length === 0 && !commentLoading" class="empty-comment">
+          暂无评论，快来发表第一条评论吧~
+        </div>
+        
+        <div 
+          v-for="comment in comments" 
+          :key="comment.id"
+          class="comment-item"
+        >
+          <!-- 一级评论 -->
+          <div class="comment-main">
+            <div class="comment-avatar">
+              <el-avatar 
+                :src="comment.user?.avatar" 
+                :size="40"
+              >
+                {{ comment.user?.username?.charAt(0) || 'U' }}
+              </el-avatar>
+            </div>
+            <div class="comment-content">
+              <div class="comment-header-info">
+                <span class="comment-username">{{ comment.user?.username || '匿名用户' }}</span>
+                <span class="comment-time">{{ formatTime(comment.createdTime) }}</span>
+              </div>
+              <div class="comment-text">{{ comment.content }}</div>
+              <div class="comment-actions">
+                <el-button 
+                  text 
+                  type="primary" 
+                  size="small"
+                  @click="toggleReply(comment.id)"
+                >
+                  {{ replyInputMap[comment.id] ? '取消回复' : '回复' }}
+                </el-button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 回复输入框 -->
+          <div v-if="replyInputMap[comment.id]" class="reply-input-area">
+            <el-input
+              v-model="replyTextMap[comment.id]"
+              type="textarea"
+              :rows="2"
+              :placeholder="`回复 ${comment.user?.username || '用户'}`"
+              maxlength="300"
+              show-word-limit
+            />
+            <div class="reply-input-actions">
+              <el-button size="small" @click="cancelReply(comment.id)">取消</el-button>
+              <el-button 
+                type="primary" 
+                size="small"
+                @click="submitReply(comment.id, comment)"
+                :disabled="!replyTextMap[comment.id]?.trim()"
+              >
+                回复
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 子评论（回复）列表 -->
+          <div v-if="comment.children && comment.children.length > 0" class="comment-replies">
+            <div 
+              v-for="reply in comment.children" 
+              :key="reply.id"
+              class="reply-item"
+            >
+              <div class="reply-avatar">
+                <el-avatar 
+                  :src="reply.user?.avatar" 
+                  :size="32"
+                >
+                  {{ reply.user?.username?.charAt(0) || 'U' }}
+                </el-avatar>
+              </div>
+              <div class="reply-content">
+                <div class="reply-header-info">
+                  <span class="reply-username">{{ reply.user?.username || '匿名用户' }}</span>
+                  <span v-if="reply.replyToUser" class="reply-to">
+                    回复 
+                    <span class="reply-to-user">@{{ reply.replyToUser.username }}</span>
+                  </span>
+                  <span class="reply-time">{{ formatTime(reply.createdTime) }}</span>
+                </div>
+                <div class="reply-text">{{ reply.content }}</div>
+                <div class="reply-actions">
+                  <el-button 
+                    text 
+                    type="primary" 
+                    size="small"
+                    @click="toggleReplyToReply(comment.id, reply.id)"
+                  >
+                    {{ replyInputMap[`${comment.id}-${reply.id}`] ? '取消回复' : '回复' }}
+                  </el-button>
+                </div>
+
+                <!-- 回复的回复输入框 -->
+                <div v-if="replyInputMap[`${comment.id}-${reply.id}`]" class="reply-input-area">
+                  <el-input
+                    v-model="replyTextMap[`${comment.id}-${reply.id}`]"
+                    type="textarea"
+                    :rows="2"
+                    :placeholder="`回复 ${reply.user?.username || '用户'}`"
+                    maxlength="300"
+                    show-word-limit
+                  />
+                  <div class="reply-input-actions">
+                    <el-button size="small" @click="cancelReply(`${comment.id}-${reply.id}`)">取消</el-button>
+                    <el-button 
+                      type="primary" 
+                      size="small"
+                      @click="submitReplyToReply(comment.id, reply.id, reply)"
+                      :disabled="!replyTextMap[`${comment.id}-${reply.id}`]?.trim()"
+                    >
+                      回复
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分页 -->
+        <div v-if="commentTotal > 0" class="comment-pagination">
+          <el-pagination
+            v-model:current-page="commentPage"
+            v-model:page-size="commentPageSize"
+            :total="commentTotal"
+            :page-sizes="[10, 20, 30, 50]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="loadComments"
+            @current-change="loadComments"
+          />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -112,6 +288,7 @@ import 'plyr/dist/plyr.css'
 import Danmaku from 'danmaku'
 import { getDanmakuList, sendDanmaku as sendDanmakuApi } from '../api/danmakuApi.js'
 import { getVideoDetail } from '../api/videoApi.js'
+import { getCommentPage, addComment, replyComment } from '../api/commentApi.js'
 import { ElMessage } from 'element-plus'
 import { 
   ChatDotRound, 
@@ -161,6 +338,17 @@ const danmakuTypes = [
   { label: '顶部', value: 1, icon: ArrowUp },
   { label: '底部', value: 2, icon: ArrowDown }
 ]
+
+// 评论相关
+const showCommentInput = ref(false)
+const commentText = ref('')
+const comments = ref([])
+const commentLoading = ref(false)
+const commentPage = ref(1)
+const commentPageSize = ref(10)
+const commentTotal = ref(0)
+const replyInputMap = ref({}) // 控制回复输入框显示
+const replyTextMap = ref({}) // 存储回复内容
 
 // 选择颜色
 const selectColor = (color) => {
@@ -523,12 +711,209 @@ const loadVideoDetail = async (id) => {
   }
 }
 
+// 加载评论
+const loadComments = async () => {
+  if (!videoId.value) return
+  
+  commentLoading.value = true
+  try {
+    const response = await getCommentPage(videoId.value, commentPage.value, commentPageSize.value)
+    if (response && response.code === 200 && response.data) {
+      comments.value = response.data.records || []
+      commentTotal.value = response.data.total || 0
+    }
+  } catch (error) {
+    console.error('加载评论失败:', error)
+    ElMessage.error('加载评论失败')
+  } finally {
+    commentLoading.value = false
+  }
+}
+
+// 提交评论（一级评论）
+const submitComment = async () => {
+  if (!commentText.value.trim()) {
+    ElMessage.warning('请输入评论内容')
+    return
+  }
+
+  if (!videoId.value) {
+    ElMessage.error('视频ID不存在')
+    return
+  }
+
+  try {
+    await addComment({
+      refId: Number(videoId.value),
+      content: commentText.value.trim()
+    })
+    ElMessage.success('评论发表成功')
+    commentText.value = ''
+    showCommentInput.value = false
+    // 重新加载评论（回到第一页）
+    commentPage.value = 1
+    await loadComments()
+  } catch (error) {
+    console.error('发表评论失败:', error)
+    ElMessage.error(error.message || '发表评论失败')
+  }
+}
+
+// 取消评论
+const cancelComment = () => {
+  commentText.value = ''
+  showCommentInput.value = false
+}
+
+// 切换回复输入框
+const toggleReply = (commentId) => {
+  if (replyInputMap.value[commentId]) {
+    delete replyInputMap.value[commentId]
+    delete replyTextMap.value[commentId]
+  } else {
+    // 关闭其他回复输入框
+    Object.keys(replyInputMap.value).forEach(key => {
+      if (key.startsWith(`${commentId}-`)) {
+        delete replyInputMap.value[key]
+        delete replyTextMap.value[key]
+      }
+    })
+    replyInputMap.value[commentId] = true
+    replyTextMap.value[commentId] = ''
+  }
+}
+
+// 切换回复的回复输入框
+const toggleReplyToReply = (commentId, replyId) => {
+  const key = `${commentId}-${replyId}`
+  if (replyInputMap.value[key]) {
+    delete replyInputMap.value[key]
+    delete replyTextMap.value[key]
+  } else {
+    // 关闭其他回复输入框
+    Object.keys(replyInputMap.value).forEach(k => {
+      if (k !== key && (k === String(commentId) || k.startsWith(`${commentId}-`))) {
+        delete replyInputMap.value[k]
+        delete replyTextMap.value[k]
+      }
+    })
+    replyInputMap.value[key] = true
+    replyTextMap.value[key] = ''
+  }
+}
+
+// 提交回复
+const submitReply = async (commentId, parentComment) => {
+  const replyText = replyTextMap.value[commentId]
+  if (!replyText || !replyText.trim()) {
+    ElMessage.warning('请输入回复内容')
+    return
+  }
+
+  if (!videoId.value) {
+    ElMessage.error('视频ID不存在')
+    return
+  }
+
+  try {
+    await replyComment({
+      refId: Number(videoId.value),
+      parentId: commentId,
+      content: replyText.trim()
+    })
+    ElMessage.success('回复成功')
+    delete replyInputMap.value[commentId]
+    delete replyTextMap.value[commentId]
+    // 重新加载评论
+    await loadComments()
+  } catch (error) {
+    console.error('回复失败:', error)
+    ElMessage.error(error.message || '回复失败')
+  }
+}
+
+// 提交回复的回复
+const submitReplyToReply = async (commentId, replyId, parentReply) => {
+  const key = `${commentId}-${replyId}`
+  const replyText = replyTextMap.value[key]
+  if (!replyText || !replyText.trim()) {
+    ElMessage.warning('请输入回复内容')
+    return
+  }
+
+  if (!videoId.value) {
+    ElMessage.error('视频ID不存在')
+    return
+  }
+
+  try {
+    // 回复的回复，parentId是回复的ID
+    await replyComment({
+      refId: Number(videoId.value),
+      parentId: replyId,
+      content: replyText.trim()
+    })
+    ElMessage.success('回复成功')
+    delete replyInputMap.value[key]
+    delete replyTextMap.value[key]
+    // 重新加载评论
+    await loadComments()
+  } catch (error) {
+    console.error('回复失败:', error)
+    ElMessage.error(error.message || '回复失败')
+  }
+}
+
+// 取消回复
+const cancelReply = (key) => {
+  delete replyInputMap.value[key]
+  delete replyTextMap.value[key]
+}
+
+// 格式化时间
+const formatTime = (timeStr) => {
+  if (!timeStr) return ''
+  const date = new Date(timeStr)
+  const now = new Date()
+  const diff = now - date
+  
+  // 小于1分钟
+  if (diff < 60000) {
+    return '刚刚'
+  }
+  // 小于1小时
+  if (diff < 3600000) {
+    return `${Math.floor(diff / 60000)}分钟前`
+  }
+  // 小于24小时
+  if (diff < 86400000) {
+    return `${Math.floor(diff / 3600000)}小时前`
+  }
+  // 小于7天
+  if (diff < 604800000) {
+    return `${Math.floor(diff / 86400000)}天前`
+  }
+  // 格式化日期
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  
+  if (year === now.getFullYear()) {
+    return `${month}-${day} ${hour}:${minute}`
+  }
+  return `${year}-${month}-${day} ${hour}:${minute}`
+}
+
 // 组件挂载
 onMounted(async () => {
   // 从路由参数获取视频ID
   const id = route.query.videoId
   if (id) {
     await loadVideoDetail(id)
+    // 加载评论
+    await loadComments()
   } else {
     ElMessage.error('缺少视频ID参数')
   }
@@ -698,5 +1083,195 @@ onBeforeUnmount(() => {
   border-color: #409eff;
   box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
   transform: scale(1.1);
+}
+
+/* 评论区域样式 */
+.comment-section {
+  margin-top: 30px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.comment-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.comment-input-area {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
+
+.comment-input-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.comment-list {
+  min-height: 200px;
+}
+
+.empty-comment {
+  text-align: center;
+  padding: 40px;
+  color: #909399;
+  font-size: 14px;
+}
+
+.comment-item {
+  padding: 15px 0;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.comment-item:last-child {
+  border-bottom: none;
+}
+
+.comment-main {
+  display: flex;
+  gap: 12px;
+}
+
+.comment-avatar {
+  flex-shrink: 0;
+}
+
+.comment-content {
+  flex: 1;
+}
+
+.comment-header-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.comment-username {
+  font-weight: 600;
+  color: #303133;
+  font-size: 14px;
+}
+
+.comment-time {
+  color: #909399;
+  font-size: 12px;
+}
+
+.comment-text {
+  color: #606266;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 15px;
+}
+
+.comment-replies {
+  margin-top: 15px;
+  margin-left: 52px;
+  padding-left: 15px;
+  border-left: 2px solid #ebeef5;
+}
+
+.reply-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.reply-avatar {
+  flex-shrink: 0;
+}
+
+.reply-content {
+  flex: 1;
+}
+
+.reply-header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.reply-username {
+  font-weight: 500;
+  color: #303133;
+  font-size: 13px;
+}
+
+.reply-to {
+  color: #909399;
+  font-size: 12px;
+}
+
+.reply-to-user {
+  color: #409eff;
+  cursor: pointer;
+}
+
+.reply-to-user:hover {
+  text-decoration: underline;
+}
+
+.reply-time {
+  color: #909399;
+  font-size: 12px;
+}
+
+.reply-text {
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+
+.reply-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.reply-input-area {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.reply-input-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.comment-pagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
 }
 </style>

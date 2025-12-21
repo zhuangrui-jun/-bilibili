@@ -14,11 +14,15 @@ request.interceptors.request.use(config => {
     config.headers['Content-Type'] = 'application/json;charset=utf-8';
     
     // 定义不需要token的接口路径
-    const noAuthPaths = ['/user/login', '/user/register', '/user/sendCode', '/user/verifyCode'];
+    // 后端已配置 /user/** 路径不需要token，所以前端也统一判断 /user/ 开头的路径
     const url = config.url || '';
     
+    // 先移除查询参数，只匹配路径部分
+    const urlPath = url.split('?')[0];
+    
     // 判断当前请求是否需要token
-    const needAuth = !noAuthPaths.some(path => url.includes(path));
+    // /user/ 开头的路径都不需要token（与后端配置保持一致）
+    const needAuth = !urlPath.startsWith('/user/');
     
     if (needAuth) {
         // 从localStorage中获取token
