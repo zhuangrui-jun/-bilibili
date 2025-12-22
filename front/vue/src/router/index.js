@@ -71,6 +71,15 @@ const router = createRouter({
             },
             component: () => import('../views/VideoSubmit.vue')
         },
+        {
+            path: '/chat',
+            name: 'chat',
+            meta: {
+                title: "聊天",
+                requireAuth: true
+            },
+            component: () => import('../views/Chat.vue')
+        },
 
 
     ],

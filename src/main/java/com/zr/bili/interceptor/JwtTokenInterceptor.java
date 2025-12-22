@@ -29,6 +29,16 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        
+        // 获取请求路径
+        String requestURI = request.getRequestURI();
+        log.info("拦截器收到请求，路径：{}", requestURI);
+        
+        // 排除 /user/** 路径，直接放行（不需要token验证）
+        if (requestURI != null && requestURI.startsWith("/user/")) {
+            log.info("跳过JWT校验，路径：{}", requestURI);
+            return true;
+        }
 
         //1、从请求头中获取令牌（前端发送的是"token"）
         String token = request.getHeader("token");
