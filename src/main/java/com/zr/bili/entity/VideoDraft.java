@@ -24,6 +24,7 @@ public class VideoDraft {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long creatorId;
 
+
     private LocalDateTime createdTime;
 
     private LocalDateTime updatedTime;

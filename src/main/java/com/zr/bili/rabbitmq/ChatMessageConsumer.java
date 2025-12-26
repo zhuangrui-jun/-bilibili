@@ -23,6 +23,12 @@ import java.io.IOException;
 public class ChatMessageConsumer {
     private final ChatWebSocketHandler chatWebSocketHandler;
 
+    /**
+     * 接收所有的离线消息
+     * @param msgJson
+     * @param routingKey
+     * @throws IOException
+     */
     @RabbitListener(
             bindings = @QueueBinding(
                     // 1. 声明固定队列（接收所有离线消息）

@@ -46,9 +46,16 @@ public class VideoDraftServiceImpl implements VideoDraftService {
 
     @Override
     public void deleteDraft(Long id) {
-        videoDraftMapper.deleteById(id);
+        QueryWrapper<VideoDraft> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("creator_id",id);
+        videoDraftMapper.delete(queryWrapper);
     }
 }
+
+
+
+
+
 
 
 

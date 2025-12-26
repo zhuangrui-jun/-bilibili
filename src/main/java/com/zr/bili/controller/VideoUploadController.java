@@ -113,6 +113,7 @@ public class VideoUploadController {
             video.setCoverUrl(request.getCoverUrl()); // 存储封面URL
             video.setCreatedTime(LocalDateTime.now());
             video.setUpdatedTime(LocalDateTime.now());
+            video.setCreatorName(BaseContext.getCurrentUsername());
             video.setTimes(0L);
             video.setIsHot(0);
 

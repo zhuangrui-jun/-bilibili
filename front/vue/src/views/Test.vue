@@ -102,6 +102,30 @@
       </div>
     </div>
 
+    <!-- 点赞区域 -->
+    <div class="like-section">
+      <div
+        class="like-container"
+        :class="{ 'is-liked': isLiked, 'is-loading': likeLoading, 'is-disabled': likeDisabled }"
+        @click="handleLike"
+      >
+        <svg 
+          v-if="!likeLoading" 
+          class="like-icon"
+          viewBox="0 0 24 24" 
+          xmlns="http://www.w3.org/2000/svg"
+          :fill="isLiked ? '#f56c6c' : '#606266'"
+        >
+          <path v-if="isLiked" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/>
+          <path v-else d="M7 22H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h3c1.1 0 2 .9 2 2v11c0 1.1-.9 2-2 2zM20 9h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2c0-1.1-.9-2-2-2z"/>
+        </svg>
+        <el-icon v-else class="like-icon is-loading">
+          <Loading />
+        </el-icon>
+        <span class="like-count">{{ likeCount }}</span>
+      </div>
+    </div>
+
     <!-- 评论区域 -->
     <div class="comment-section">
       <div class="comment-header">
@@ -289,6 +313,7 @@ import Danmaku from 'danmaku'
 import { getDanmakuList, sendDanmaku as sendDanmakuApi } from '../api/danmakuApi.js'
 import { getVideoDetail } from '../api/videoApi.js'
 import { getCommentPage, addComment, replyComment } from '../api/commentApi.js'
+import { toggleLike, getLikeStatus, getLikeCount } from '../api/likeApi.js'
 import { ElMessage } from 'element-plus'
 import { 
   ChatDotRound, 
@@ -296,7 +321,8 @@ import {
   Setting,
   Sort,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Loading
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -338,6 +364,14 @@ const danmakuTypes = [
   { label: '顶部', value: 1, icon: ArrowUp },
   { label: '底部', value: 2, icon: ArrowDown }
 ]
+
+// 点赞相关
+const isLiked = ref(false)
+const likeCount = ref(0)
+const likeLoading = ref(false)
+const likeDisabled = ref(false)
+let lastLikeTime = 0 // 上次点赞时间，用于节流
+const LIKE_THROTTLE_TIME = 1000 // 点赞节流时间：1秒
 
 // 评论相关
 const showCommentInput = ref(false)
@@ -586,14 +620,10 @@ const sendDanmaku = async () => {
   }
   const danmakuMode = danmakuTypeMap[danmakuType.value] || 'scroll'
 
-  // 获取当前用户信息
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
-  const authorName = user.username || user.id || 'User'
-
   // 构建发送数据，确保所有字段都有值
   const danmakuDataToSend = {
     id: videoId.value || 'test-video-001',
-    author: authorName,
+    author: 'User',
     time: currentTime,
     text: danmakuText.value.trim(),
     color: colorDecimal,
@@ -635,7 +665,7 @@ const sendDanmaku = async () => {
       currentTime,
       danmakuType.value,
       colorDecimal,
-      authorName,
+      'User',
       danmakuText.value
     ])
 
@@ -697,6 +727,12 @@ const loadVideoDetail = async (id) => {
       videoUrl.value = url
       videoId.value = String(response.data.id) // 确保videoId是字符串格式
       
+      // 加载点赞状态和点赞数
+      await loadLikeStatus()
+      
+      // 加载评论
+      await loadComments()
+      
       // 加载完视频信息后初始化播放器
       await nextTick()
       setTimeout(() => {
@@ -708,6 +744,85 @@ const loadVideoDetail = async (id) => {
   } catch (error) {
     console.error('加载视频详情失败:', error)
     ElMessage.error('加载视频详情失败')
+  }
+}
+
+// 加载点赞状态
+const loadLikeStatus = async () => {
+  if (!videoId.value) return
+  
+  try {
+    // 先获取点赞数（不需要登录）
+    const countResponse = await getLikeCount(videoId.value)
+    if (countResponse && countResponse.code === 200) {
+      likeCount.value = countResponse.data || 0
+    }
+    
+    // 尝试获取点赞状态（需要登录，如果未登录会失败，但不影响）
+    try {
+      const statusResponse = await getLikeStatus(videoId.value)
+      if (statusResponse && statusResponse.code === 200 && statusResponse.data) {
+        isLiked.value = statusResponse.data.isLiked || false
+        likeCount.value = statusResponse.data.likeCount || 0
+      }
+    } catch (error) {
+      // 未登录时获取状态会失败，这是正常的，使用默认值
+      console.log('未登录或获取点赞状态失败，使用默认值')
+    }
+  } catch (error) {
+    console.error('加载点赞状态失败:', error)
+  }
+}
+
+// 处理点赞（带节流）
+const handleLike = async () => {
+  if (!videoId.value) {
+    ElMessage.warning('视频ID不存在')
+    return
+  }
+  
+  // 如果正在加载，直接返回
+  if (likeLoading.value || likeDisabled.value) {
+    return
+  }
+  
+  // 节流：检查距离上次点击的时间
+  const now = Date.now()
+  const timeSinceLastClick = now - lastLikeTime
+  if (timeSinceLastClick < LIKE_THROTTLE_TIME) {
+    // 在节流时间内，静默返回
+    return
+  }
+  
+  // 更新最后点击时间
+  lastLikeTime = now
+  likeLoading.value = true
+  likeDisabled.value = true
+  
+  try {
+    const response = await toggleLike(videoId.value)
+    if (response && response.code === 200 && response.data) {
+      isLiked.value = response.data.isLiked || false
+      likeCount.value = response.data.likeCount || 0
+      ElMessage.success(isLiked.value ? '点赞成功' : '已取消点赞')
+    } else {
+      ElMessage.error(response?.msg || '操作失败')
+    }
+  } catch (error) {
+    console.error('点赞操作失败:', error)
+    // 如果是未登录错误，不显示错误消息
+    if (error.message && !error.message.includes('登录')) {
+      ElMessage.error(error.message || '操作失败，请重试')
+    }
+  } finally {
+    likeLoading.value = false
+    // 计算剩余节流时间
+    const elapsed = Date.now() - lastLikeTime
+    const remainingTime = Math.max(0, LIKE_THROTTLE_TIME - elapsed)
+    // 延迟恢复按钮状态，确保节流生效
+    setTimeout(() => {
+      likeDisabled.value = false
+    }, remainingTime)
   }
 }
 
@@ -912,8 +1027,6 @@ onMounted(async () => {
   const id = route.query.videoId
   if (id) {
     await loadVideoDetail(id)
-    // 加载评论
-    await loadComments()
   } else {
     ElMessage.error('缺少视频ID参数')
   }
@@ -1083,6 +1196,68 @@ onBeforeUnmount(() => {
   border-color: #409eff;
   box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
   transform: scale(1.1);
+}
+
+/* 点赞区域样式 */
+.like-section {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 12px 20px;
+  margin: 20px 0;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.like-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+  user-select: none;
+}
+
+.like-container:hover:not(.is-disabled) {
+  transform: scale(1.1);
+}
+
+.like-container:active:not(.is-disabled) {
+  transform: scale(0.95);
+}
+
+.like-container.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.like-icon {
+  width: 20px;
+  height: 20px;
+  transition: all 0.3s;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.like-icon.is-loading {
+  animation: rotating 1s linear infinite;
+}
+
+@keyframes rotating {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.like-count {
+  font-size: 14px;
+  color: #606266;
+  font-weight: 500;
+  line-height: 1;
 }
 
 /* 评论区域样式 */

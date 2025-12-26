@@ -90,6 +90,7 @@ public class UserController {
         //登录成功后，生成jwt令牌
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
+        claims.put("username", user.getUsername());
         String token = JwtUtil.createJWT(
                 jwtProperties.getAdminSecretKey(),
                 jwtProperties.getAdminTtl(),

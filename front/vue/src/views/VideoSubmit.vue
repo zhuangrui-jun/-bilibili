@@ -719,6 +719,82 @@ const autoSaveDraft = async () => {
   }, 1000) // 1秒后保存
 }
 
+// 从OSS URL中提取objectKey
+const extractObjectKeyFromUrl = (url) => {
+  if (!url) return null
+  
+  try {
+    const urlObj = new URL(url)
+    // 提取路径部分，去掉开头的斜杠
+    let objectKey = urlObj.pathname
+    if (objectKey.startsWith('/')) {
+      objectKey = objectKey.substring(1)
+    }
+    return objectKey
+  } catch (e) {
+    // 如果不是标准URL格式，尝试从字符串中提取
+    // 格式可能是：https://bucket.region.aliyuncs.com/path/to/file
+    const match = url.match(/https?:\/\/[^\/]+\/(.+)/)
+    if (match && match[1]) {
+      return match[1].split('?')[0] // 去掉查询参数
+    }
+    return null
+  }
+}
+
+// 删除OSS文件
+const deleteOssFile = async (url) => {
+  if (!url || !ossClient) {
+    return
+  }
+  
+  try {
+    const objectKey = extractObjectKeyFromUrl(url)
+    if (!objectKey) {
+      console.warn('无法从URL中提取objectKey:', url)
+      return
+    }
+    
+    await ossClient.delete(objectKey)
+    console.log('OSS文件删除成功:', objectKey)
+  } catch (error) {
+    console.error('删除OSS文件失败:', error)
+    // 不抛出错误，避免影响删除草稿流程
+    // 如果文件不存在或已删除，OSS会返回404，这是可以接受的
+  }
+}
+
+// 删除草稿（包括OSS文件）
+const deleteDraftWithOss = async () => {
+  // 先获取草稿信息，以便删除OSS文件
+  let videoUrl = null
+  let coverUrl = null
+  
+  try {
+    const res = await getDraftList()
+    if (res.code === 200 && res.data) {
+      videoUrl = res.data.videoUrl
+      coverUrl = res.data.coverUrl
+    }
+  } catch (error) {
+    console.error('获取草稿信息失败:', error)
+    // 继续执行删除，即使获取信息失败
+  }
+  
+  // 删除OSS中的视频文件
+  if (videoUrl) {
+    await deleteOssFile(videoUrl)
+  }
+  
+  // 删除OSS中的封面文件
+  if (coverUrl) {
+    await deleteOssFile(coverUrl)
+  }
+  
+  // 删除数据库中的草稿记录
+  await deleteDraft()
+}
+
 // 取消
 const handleCancel = async () => {
   if (autoSaveTimer.value) {
@@ -770,7 +846,7 @@ const handleCancel = async () => {
           // 退出而不保存草稿（删除草稿）
           instance.cancelButtonLoading = true
           try {
-            await deleteDraft()
+            await deleteDraftWithOss()
             ElMessage.success('草稿已删除')
             done()
             router.push('/home')

@@ -40,4 +40,6 @@ public class Video {
     private LocalDateTime updatedTime;
 
     private String creatorName;
+
+    private int likes;
 }
